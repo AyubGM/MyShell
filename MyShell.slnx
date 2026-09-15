@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="MyShell/MyShell.vcxproj" />
+  <Project Path="MyShell/MyShell.vcxproj" Id="b9052632-1553-4e40-bfd9-099b23a7cd80" />
 </Solution>
