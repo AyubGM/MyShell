@@ -49,9 +49,20 @@ std::vector<std::wstring> TokenizeCommand(const std::wstring& line)
     return tokens;
 }
 
+std::wstring ExpandEnvironmentVariables(const std::wstring& input)
+{
+    DWORD size = ExpandEnvironmentStringsW(input.c_str(), nullptr, 0);
+    if (size == 0) return input;
+
+    std::wstring expanded(size, L'\0');
+    ExpandEnvironmentStringsW(input.c_str(), expanded.data(), size);
+    expanded.resize(size - 1); // Remove null-terminator padding
+    return expanded;
+}
+
 bool HandelBuiltIns(const std::wstring& command, const std::vector<std::wstring>& args)
 {
-    if (command == L"exist")
+    if (command == L"exit")
     {
         std::exit(0);
     }
@@ -73,6 +84,66 @@ bool HandelBuiltIns(const std::wstring& command, const std::vector<std::wstring>
     }
     return false;
 }
+void ExecuteCommand(const std::wstring& commandLine, const std::vector<std::wstring>& args) 
+{
+    STARTUPINFO si{ .cb = sizeof(si) };
+    PROCESS_INFORMATION pi{};
+
+    std::wstring finalCommandLine = commandLine;
+
+    std::filesystem::path exePath(args[0]);
+    std::wstring ext = exePath.extension().wstring();
+
+    if (ext == L".bat" || ext == L".cmd")
+    {
+        finalCommandLine = L"cmd.exe /c " + commandLine;
+    }
+    else if (ext == L".ps1")
+    {
+        finalCommandLine = L"powershell.exe -ExecutionPolicy Bypass -File " + commandLine;
+    }
+    else if (ext == L".sh")
+    {
+        finalCommandLine = L"wsl.exe bash -c \"" + commandLine + L"\"";
+    }
+
+    BOOL success = CreateProcess(
+        nullptr,
+        finalCommandLine.data(),
+        nullptr, nullptr,
+        FALSE, 0, nullptr, nullptr,
+        &si, &pi
+    );
+
+    if (success)
+    {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    else
+    {
+        /// Fallback for built-ins like 'dir', 'cls', or extensionless batch scripts
+        std::wstring cmdFallback = L"cmd.exe /c " + commandLine;
+        success = CreateProcess(
+            nullptr, cmdFallback.data(),
+            nullptr, nullptr, FALSE, 0, nullptr, nullptr,
+            &si, &pi
+        );
+
+        if (success)
+        {
+            WaitForSingleObject(pi.hProcess, INFINITE);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+        else
+        {
+            std::println("Command failed or not found. Error code: {}", GetLastError());
+        }
+    }
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -87,6 +158,9 @@ int main(int argc, char* argv[])
             continue;
         }
 
+        line = ExpandEnvironmentVariables(line);
+
+
 		std::vector<std::wstring> args = TokenizeCommand(line);
 
 		if (args.empty())
@@ -99,7 +173,7 @@ int main(int argc, char* argv[])
 
         if (!HandelBuiltIns(args[0], args))
         {
-
+            ExecuteCommand(line, args);
         }
 
     }
