@@ -49,6 +49,31 @@ std::vector<std::wstring> TokenizeCommand(const std::wstring& line)
     return tokens;
 }
 
+bool HandelBuiltIns(const std::wstring& command, const std::vector<std::wstring>& args)
+{
+    if (command == L"exist")
+    {
+        std::exit(0);
+    }
+    else if (command == L"cd")
+    {
+        if (args.size() < 2)
+        {
+            std::println("cd: missing path argument");
+            return true;
+        }
+
+        std::error_code ec;
+        std::filesystem::current_path(args[1], ec);
+        if (ec)
+        {
+            std::println("cd: failed to change directory: {}", ec.message());
+        }
+        return true;
+    }
+    return false;
+}
+
 int main(int argc, char* argv[])
 {
     while (true)
@@ -71,6 +96,11 @@ int main(int argc, char* argv[])
 		}
 
         PrintTokens(args);
+
+        if (!HandelBuiltIns(args[0], args))
+        {
+
+        }
 
     }
     
